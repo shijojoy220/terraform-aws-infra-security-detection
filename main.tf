@@ -211,8 +211,6 @@ resource "aws_instance" "app" {
 resource "aws_s3_bucket" "bucket" {
   bucket              = "${var.project}-${var.project_env}-logs-21-bucket"
   acl                 = "private"
-  block_public_acls   = true
-  block_public_policy = true
 
   tags = {
     project     = var.project,
@@ -220,7 +218,14 @@ resource "aws_s3_bucket" "bucket" {
   }
 }
 
+resource "aws_s3_bucket_public_access_block" "example" {
+  bucket = aws_s3_bucket.bucket.id
 
+  block_public_acls   = true
+  block_public_policy = true
+  ignore_public_acls  = true
+  restrict_public_buckets = true
+}
 
 ##################################
 # Lambda
@@ -285,7 +290,7 @@ resource "aws_lambda_function" "test_lambda" {
   filename      = "lambda_function_payload.zip"
   function_name = "${var.project}-state-change-detect"
   role          = aws_iam_role.iam_for_lambda.arn
-  handler       = "lambda.handler"
+  handler       = "lambda_function.lambda_handler"
 
   source_code_hash = filebase64sha256("lambda_function_payload.zip")
 
@@ -306,9 +311,9 @@ resource "aws_lambda_function" "test_lambda" {
 
 # Create log group and attch access
 
-esource "aws_cloudwatch_log_group" "example" {
-  name              = "/aws/lambda/${var.project}-state-change-detect}"
-  retention_in_days = 10
+resource "aws_cloudwatch_log_group" "example" {
+  name              = "/aws/lambda/${var.project}-state-change-detect"
+  retention_in_days = 14
 }
 
 resource "aws_iam_policy" "lambda_logging" {
@@ -337,5 +342,34 @@ EOF
 resource "aws_iam_role_policy_attachment" "lambda_logs" {
   role       = aws_iam_role.iam_for_lambda.name
   policy_arn = aws_iam_policy.lambda_logging.arn
+}
+
+# cloudwatch events
+
+resource "aws_cloudwatch_event_rule" "console" {
+  name        = "${var.project}-ec2-status-events"
+  description = "Capture all EC2 Status events"
+
+  event_pattern = <<PATTERN
+{
+  "source": [
+    "aws.ec2"
+  ],
+  "detail-type": [
+    "EC2 Instance State-change Notification"
+  ],
+  "detail": {
+    "state": [
+      "running",
+      "stopping"
+    ]
+  }
+}
+PATTERN
+}
+
+resource "aws_cloudwatch_event_target" "example" {
+  arn  = aws_lambda_function.test_lambda.arn
+  rule = aws_cloudwatch_event_rule.console.id
 }
 
