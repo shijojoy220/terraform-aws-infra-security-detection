@@ -1,5 +1,14 @@
 # terraform-aws-infra-security-detection-pvt
 
+### Requirements:
+#### AWS Account with the following access:
+- AmazonEC2FullAccess
+- IAMFullAccess
+- AmazonS3FullAccess
+- CloudWatchLogsFullAccess
+- CloudWatchEventsFullAccess
+- AWSLambda_FullAccess
+
 ### Basic Usage
 
 ```bash
